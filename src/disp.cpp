@@ -888,6 +888,29 @@ void VariantObject::NodeInit(const Local<Object> &target) {
 	if (clazz->GetFunction(ctx).ToLocal(&func)) {
 		target->Set(ctx, v8str(isolate, "Variant"), func);
 	}
+	
+	// Create paramNotFound, set vt to VT_ERROR and scode to DISP_E_PARAMNOTFOUND (-2147352572)
+	Local<Object> paramNotFound;
+	if (func->NewInstance(ctx, 0, nullptr).ToLocal(&paramNotFound)) {
+		auto variantPtr = VariantObject::Unwrap<VariantObject>(paramNotFound);
+		if (variantPtr) {
+			variantPtr->value.Clear();
+			variantPtr->value.vt = VT_ERROR;
+			variantPtr->value.scode = DISP_E_PARAMNOTFOUND;
+			if (func->Set(ctx, v8str(isolate, "VT_ERROR:DISP_E_PARAMNOTFOUND"), paramNotFound) != Just(true)) {
+				// This should be an error
+				isolate->ThrowException(Error(isolate, "Failed to add paramNotFound to Variant"));
+				return;
+			}
+		} else {
+			isolate->ThrowException(Error(isolate, "Failed to unwrap paramNotFound"));
+			return;
+		}
+	} else {
+		isolate->ThrowException(Error(isolate, "Failed to instantiate paramNotFound"));
+		return;
+	}
+	
 	NODE_DEBUG_MSG("VariantObject initialized");
 }
 
@@ -990,6 +1013,7 @@ void VariantObject::NodeGet(Local<Name> name, const PropertyCallbackInfo<Value>&
         if (vtypes.find(self->value.vt & VT_TYPEMASK, name)) type += name;
 		else type += std::to_wstring(self->value.vt & VT_TYPEMASK);
 		Local<String> text = v8str(isolate, type.c_str());
+		args.GetReturnValue().Set(text);
 	}
 	else if (_wcsicmp(id, L"__proto__") == 0) {
 		Local<Function> func;
