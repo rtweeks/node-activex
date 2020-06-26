@@ -366,6 +366,13 @@ void DispObject::initTypeInfo(Isolate *isolate) {
 			item->Set(ctx, v8str(isolate, "invkind"), Int32::New(isolate, (int32_t)func->invkind));
 			item->Set(ctx, v8str(isolate, "flags"), Int32::New(isolate, (int32_t)func->wFuncFlags));
 			item->Set(ctx, v8str(isolate, "argcnt"), Int32::New(isolate, (int32_t)func->cParams));
+			if (func->cParamsOpt >= 0) {
+				item->Set(ctx, v8str(isolate, "argcnt_min"), Int32::New(isolate, (int32_t)(func->cParamsOpt - func->cParamsOpt)));
+				item->Set(ctx, v8str(isolate, "argcnt_max"), Int32::New(isolate, (int32_t)func->cParams));
+			}
+			else {
+				item->Set(ctx, v8str(isolate, "argcnt_min"), Int32::New(isolate, (int32_t)func->cParamsOpt));
+			}
 			_methods->Set(ctx, vname, item);
 		} else {
 			item->Set(ctx, v8str(isolate, "varkind"), Int32::New(isolate, (int32_t)var->varkind));
