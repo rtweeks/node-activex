@@ -974,6 +974,10 @@ void VariantObject::NodeValueOf(const FunctionCallbackInfo<Value>& args) {
 		isolate->ThrowException(DispErrorInvalid(isolate));
 		return;
 	}
+	if (self->value.vt == VT_ERROR) {
+		args.GetReturnValue().Set(args.This());
+		return;
+	}
 	Local<Value> result = Variant2Value(isolate, self->value, true);
 	args.GetReturnValue().Set(result);
 }
