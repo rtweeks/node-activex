@@ -7,6 +7,9 @@
 #include "stdafx.h"
 #include "disp.h"
 
+#include <cstring>
+#include <limits>
+
 const GUID CLSID_DispObjectImpl = { 0x9dce8520, 0x2efe, 0x48c0,{ 0xa0, 0xdc, 0x95, 0x1b, 0x29, 0x18, 0x72, 0xc0 } };
 
 //-------------------------------------------------------------------------------------------------------
@@ -82,9 +85,22 @@ Local<Value> Variant2Array(Isolate *isolate, const VARIANT &v) {
 	else if ( varr->cDims == 2 ) return Variant2Array2( isolate, v );
 	Local<Context> ctx = isolate->GetCurrentContext();
 	VARTYPE vt = v.vt & VT_TYPEMASK;
-	LONG cnt = (LONG)varr->rgsabound[0].cElements;
+	ULONG cnt = varr->rgsabound[0].cElements;
+	// Loop iterator is a LONG below, so clamp cnt to the range of a LONG
+	if ((LONG)cnt < 0) {
+		cnt = (std::numeric_limits<LONG>::max)();
+	}
+	
+	HRESULT hr = S_OK;
+	if (vt == VT_UI1 && SUCCEEDED(hr = SafeArrayLock(varr))) {
+		auto buffer = ArrayBuffer::New(isolate, cnt);
+		std::memcpy(buffer->GetContents().Data(), varr->pvData, cnt);
+		SafeArrayUnlock(varr);
+		return Uint8Array::New(buffer, 0, cnt);
+	}
+	
 	Local<Array> arr = Array::New(isolate, cnt);
-	for (LONG i = varr->rgsabound[0].lLbound; i < varr->rgsabound[0].lLbound + cnt; i++) {
+	for (LONG i = varr->rgsabound[0].lLbound; i < varr->rgsabound[0].lLbound + (LONG)cnt; i++) {
 		CComVariant vi;
 		if SUCCEEDED(SafeArrayGetElement(varr, &i, (vt == VT_VARIANT) ? (void*)&vi : (void*)&vi.byref)) {
 			if (vt != VT_VARIANT) vi.vt = vt;
@@ -285,6 +301,24 @@ void Value2Variant(Isolate *isolate, Local<Value> &val, VARIANT &var, VARTYPE vt
 		var.boolVal = NODE_BOOL(isolate, val) ? VARIANT_TRUE : VARIANT_FALSE;
         var.vt = VT_BOOL;
     }
+	else if (val->IsUint8Array()) {
+		Local<Uint8Array> arr = Local<Uint8Array>::Cast(val);
+		auto len = arr->Length();
+		SAFEARRAYBOUND saBound;
+		saBound.lLbound = 0;
+		saBound.cElements = (LONG)len;
+		var.vt = VT_ARRAY | VT_UI1;
+		var.parray = SafeArrayCreateVector(VT_UI1, 0, len);
+		HRESULT hr = S_OK;
+		if SUCCEEDED(hr = SafeArrayLock(var.parray)) {
+			arr->CopyContents(var.parray->pvData, len);
+			SafeArrayUnlock(var.parray);
+		} else {
+			VariantClear(&var);
+			var.vt = VT_ERROR;
+			var.scode = hr;
+		}
+	}
 	else if (val->IsArray() && (vt != VT_NULL)) {
 		Local<Array> arr = v8::Local<Array>::Cast(val);
 		uint32_t len = arr->Length();
