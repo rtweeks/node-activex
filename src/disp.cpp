@@ -890,6 +890,7 @@ void VariantObject::NodeInit(const Local<Object> &target) {
 	}
 	
 	// Create paramNotFound, set vt to VT_ERROR and scode to DISP_E_PARAMNOTFOUND (-2147352572)
+	// (used according to https://pubs.opengroup.org/onlinepubs/098759899/CHP18GDC.HTM)
 	Local<Object> paramNotFound;
 	if (func->NewInstance(ctx, 0, nullptr).ToLocal(&paramNotFound)) {
 		auto variantPtr = VariantObject::Unwrap<VariantObject>(paramNotFound);
@@ -898,17 +899,13 @@ void VariantObject::NodeInit(const Local<Object> &target) {
 			variantPtr->value.vt = VT_ERROR;
 			variantPtr->value.scode = DISP_E_PARAMNOTFOUND;
 			if (func->Set(ctx, v8str(isolate, "VT_ERROR:DISP_E_PARAMNOTFOUND"), paramNotFound) != Just(true)) {
-				// This should be an error
-				isolate->ThrowException(Error(isolate, "Failed to add paramNotFound to Variant"));
-				return;
+				NODE_DEBUG_MSG("VariantObject - Failed to add paramNotFound to Variant");
 			}
 		} else {
-			isolate->ThrowException(Error(isolate, "Failed to unwrap paramNotFound"));
-			return;
+			NODE_DEBUG_MSG("VariantObject - Failed to unwrap paramNotFound");
 		}
 	} else {
-		isolate->ThrowException(Error(isolate, "Failed to instantiate paramNotFound"));
-		return;
+		NODE_DEBUG_MSG("VariantObject - Failed to instantiate paramNotFound")
 	}
 	
 	NODE_DEBUG_MSG("VariantObject initialized");
